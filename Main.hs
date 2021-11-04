@@ -10,27 +10,22 @@
     You should have received a copy of the GNU General Public License
     along with rwm. If not, see <https://www.gnu.org/licenses/>.  -}
 
+import Control.Monad
 import Graphics.X11
 
-blockUntilMapNotify :: Display -> IO ()
-blockUntilMapNotify display = do
+loop :: Display -> IO ()
+loop dpy = do
   allocaXEvent $ \e -> do
-    nextEvent display e
+    nextEvent dpy e
     t <- get_EventType e
-    if (t == mapNotify) then return () else blockUntilMapNotify display
-
+    w <- get_Window e
+    loop dpy
+    
 main :: IO ()
 main = do
-  display <- openDisplay ""
-  let black = blackPixel display (defaultScreen display)
-  let white = whitePixel display (defaultScreen display)
-  window <- createSimpleWindow display (defaultRootWindow display) 0 0 200 100 0 black black
-  selectInput display window structureNotifyMask
-  mapWindow display window
-  gc <- createGC display window
-  setForeground display gc white
-  blockUntilMapNotify display
-  drawLine display window gc 10 60 180 20
-  flush display
-  blockUntilMapNotify display
-  print "Hello"
+  dpy <- openDisplay ""
+  f1Key <- keysymToKeycode dpy (stringToKeysym "F1")
+  grabKey dpy f1Key mod1Mask (defaultRootWindow dpy) True grabModeAsync grabModeSync
+  grabButton dpy 1 mod1Mask (defaultRootWindow dpy) True (buttonPressMask + buttonReleaseMask + pointerMotionMask) grabModeAsync grabModeAsync 0 0
+  grabButton dpy 3 mod1Mask (defaultRootWindow dpy) True (buttonPressMask + buttonReleaseMask + pointerMotionMask) grabModeAsync grabModeAsync 0 0
+  loop dpy
