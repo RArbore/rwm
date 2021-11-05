@@ -1,0 +1,3 @@
+* Russel's Window Manager
+=rwm= is my personal window manager written in Haskell. It's mainly an exercise in learning Haskell and Xlib.
+=rwm= is free/libre software licensed under the GPL v3.
