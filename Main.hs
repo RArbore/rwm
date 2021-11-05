@@ -17,7 +17,7 @@ import Data.Int
 import Graphics.X11
 import Graphics.X11.Xlib.Extras
 
-data LoopState = NoPrev | LoopState { prevButtonEvent :: XButtonEvent,
+data LoopState = NoPrev | LoopState { prevButtonEvent :: Event,
                                       prevButtonWindowAttr :: WindowAttributes
                            }
 
@@ -41,14 +41,17 @@ loop dpy state = do
       --    xDiff = x - (prevMouseX state)
       --    yDiff = y - (prevMouseY state)
       --moveWindow dpy w (fromIntegral (xDiff + (wa_x windowAttr))) (fromIntegral (yDiff + (wa_y windowAttr)))
-      buttonEvent <- get_ButtonEvent e
-      windowAttr <- getWindowAttributes dpy w
-      return $ LoopState buttonEvent windowAttr
+      xButtonEvent <- get_ButtonEvent e
+      event <- getEvent e
+      windowAttr <- getWindowAttributes dpy (ev_subwindow event)
+      return $ LoopState event windowAttr
     else if (t == motionNotify && isPrev state) then do
-      motionEvent <- get_MotionEvent e
-      let (_, _, _, _, _, nx, ny, _, _, _) = motionEvent
-          (_, _, _, _, _, px, py, _, _, _) = prevButtonEvent state
-      moveResizeWindow dpy w (fromIntegral $ (wa_x $ prevButtonWindowAttr state) + nx - px) (fromIntegral $ (wa_y $ prevButtonWindowAttr state) + ny - py) (fromIntegral $ wa_width $ prevButtonWindowAttr state) (fromIntegral $ wa_height $ prevButtonWindowAttr state)
+      xMotionEvent <- get_MotionEvent e
+      let (_, _, _, _, _, nx, ny, _, _, _) = xMotionEvent
+          px = ev_x_root $ prevButtonEvent state
+          py = ev_y_root $ prevButtonEvent state
+      moveResizeWindow dpy (ev_subwindow $ prevButtonEvent state) (fromIntegral $ (wa_x $ prevButtonWindowAttr state) + nx - px) (fromIntegral $ (wa_y $ prevButtonWindowAttr state) + ny - py) (fromIntegral $ wa_width $ prevButtonWindowAttr state) (fromIntegral $ wa_height $ prevButtonWindowAttr state)
+      appendFile "/home/russel/Work/rwm/rwm.log" $ (show (fromIntegral $ (wa_x $ prevButtonWindowAttr state) + nx - px)) ++ " " ++ (show (fromIntegral $ (wa_y $ prevButtonWindowAttr state) + ny - py)) ++ " " ++ (show (fromIntegral $ wa_width $ prevButtonWindowAttr state)) ++ " " ++ (show (fromIntegral $ wa_height $ prevButtonWindowAttr state)) ++ ['\n']
       return state
     else if (t == buttonRelease) then do
       return NoPrev
