@@ -1,3 +1,4 @@
+*.log
 *.hi
 *.o
 rwm
