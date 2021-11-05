@@ -50,8 +50,9 @@ loop dpy state = do
       let (_, _, _, _, _, nx, ny, _, _, _) = xMotionEvent
           px = ev_x_root $ prevButtonEvent state
           py = ev_y_root $ prevButtonEvent state
-      moveResizeWindow dpy (ev_subwindow $ prevButtonEvent state) (fromIntegral $ (wa_x $ prevButtonWindowAttr state) + nx - px) (fromIntegral $ (wa_y $ prevButtonWindowAttr state) + ny - py) (fromIntegral $ wa_width $ prevButtonWindowAttr state) (fromIntegral $ wa_height $ prevButtonWindowAttr state)
-      appendFile "/home/russel/Work/rwm/rwm.log" $ (show (fromIntegral $ (wa_x $ prevButtonWindowAttr state) + nx - px)) ++ " " ++ (show (fromIntegral $ (wa_y $ prevButtonWindowAttr state) + ny - py)) ++ " " ++ (show (fromIntegral $ wa_width $ prevButtonWindowAttr state)) ++ " " ++ (show (fromIntegral $ wa_height $ prevButtonWindowAttr state)) ++ ['\n']
+      if ((ev_button $ prevButtonEvent state) == 1) then do moveResizeWindow dpy (ev_subwindow $ prevButtonEvent state) (fromIntegral $ (wa_x $ prevButtonWindowAttr state) + nx - px) (fromIntegral $ (wa_y $ prevButtonWindowAttr state) + ny - py) (fromIntegral $ wa_width $ prevButtonWindowAttr state) (fromIntegral $ wa_height $ prevButtonWindowAttr state)
+      else if ((ev_button $ prevButtonEvent state) == 3) then do moveResizeWindow dpy (ev_subwindow $ prevButtonEvent state) (fromIntegral $ (wa_x $ prevButtonWindowAttr state)) (fromIntegral $ (wa_y $ prevButtonWindowAttr state)) (fromIntegral $ (wa_width $ prevButtonWindowAttr state) + nx - px) (fromIntegral $ (wa_height $ prevButtonWindowAttr state) + ny - py)
+      else do return ()
       return state
     else if (t == buttonRelease) then do
       return NoPrev
