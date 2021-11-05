@@ -18,8 +18,7 @@ import Graphics.X11
 import Graphics.X11.Xlib.Extras
 
 data LoopState = NoPrev | LoopState { prevButtonEvent :: Event,
-                                      prevButtonWindowAttr :: WindowAttributes
-                           }
+                                      prevButtonWindowAttr :: WindowAttributes }
 
 isPrev :: LoopState -> Bool
 isPrev NoPrev = False
@@ -35,12 +34,6 @@ loop dpy state = do
       raiseWindow dpy w
       return state
     else if (t == buttonPress) then do
-      --motionEvent <- get_MotionEvent e
-      --windowAttr <- getWindowAttributes dpy w
-      --let (_, _, _, _, _, x, y, _, _, _) = motionEvent
-      --    xDiff = x - (prevMouseX state)
-      --    yDiff = y - (prevMouseY state)
-      --moveWindow dpy w (fromIntegral (xDiff + (wa_x windowAttr))) (fromIntegral (yDiff + (wa_y windowAttr)))
       xButtonEvent <- get_ButtonEvent e
       event <- getEvent e
       windowAttr <- getWindowAttributes dpy (ev_subwindow event)
@@ -50,8 +43,10 @@ loop dpy state = do
       let (_, _, _, _, _, nx, ny, _, _, _) = xMotionEvent
           px = ev_x_root $ prevButtonEvent state
           py = ev_y_root $ prevButtonEvent state
-      if ((ev_button $ prevButtonEvent state) == 1) then do moveResizeWindow dpy (ev_subwindow $ prevButtonEvent state) (fromIntegral $ (wa_x $ prevButtonWindowAttr state) + nx - px) (fromIntegral $ (wa_y $ prevButtonWindowAttr state) + ny - py) (fromIntegral $ wa_width $ prevButtonWindowAttr state) (fromIntegral $ wa_height $ prevButtonWindowAttr state)
-      else if ((ev_button $ prevButtonEvent state) == 3) then do moveResizeWindow dpy (ev_subwindow $ prevButtonEvent state) (fromIntegral $ (wa_x $ prevButtonWindowAttr state)) (fromIntegral $ (wa_y $ prevButtonWindowAttr state)) (fromIntegral $ (wa_width $ prevButtonWindowAttr state) + nx - px) (fromIntegral $ (wa_height $ prevButtonWindowAttr state) + ny - py)
+      if ((ev_button $ prevButtonEvent state) == 1) then do
+        moveResizeWindow dpy (ev_subwindow $ prevButtonEvent state) (fromIntegral $ (wa_x $ prevButtonWindowAttr state) + nx - px) (fromIntegral $ (wa_y $ prevButtonWindowAttr state) + ny - py) (fromIntegral $ wa_width $ prevButtonWindowAttr state) (fromIntegral $ wa_height $ prevButtonWindowAttr state)
+      else if ((ev_button $ prevButtonEvent state) == 3) then do
+        moveResizeWindow dpy (ev_subwindow $ prevButtonEvent state) (fromIntegral $ (wa_x $ prevButtonWindowAttr state)) (fromIntegral $ (wa_y $ prevButtonWindowAttr state)) (fromIntegral $ (wa_width $ prevButtonWindowAttr state) + nx - px) (fromIntegral $ (wa_height $ prevButtonWindowAttr state) + ny - py)
       else do return ()
       return state
     else if (t == buttonRelease) then do
