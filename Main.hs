@@ -24,25 +24,50 @@ data MouseState = NoPrevMouse | MouseState { prevButtonEvent :: Event,
                                              prevButtonWindowAttr :: WindowAttributes }
 
 data MasterState = MasterState { mouseState :: MouseState,
-                                 displays :: [RWMDisplay] }
+                                 displays :: [RWMDisplay],
+                                 screenWidth :: Int,
+                                 screenHeight :: Int }
 
 mouseIsPrev :: MouseState -> Bool
 mouseIsPrev NoPrevMouse = False
 mouseIsPrev _ = True
 
 makeWindow :: MasterState -> Window -> MasterState
-makeWindow ms w = MasterState (mouseState ms) (addToFirstEnabled w $ displays ms)
+makeWindow ms w = MasterState (mouseState ms) (addToFirstEnabled w $ displays ms) (screenWidth ms) (screenHeight ms)
   where addToFirstEnabled _ [] = []
         addToFirstEnabled win (disp:disps)
           | showing disp = (RWMDisplay (win:(windows disp)) True):disps
           | otherwise = disp:(addToFirstEnabled win disps)
 
 discardWindow :: MasterState -> Window -> MasterState
-discardWindow ms w = MasterState (mouseState ms) (removeFromFirstAppearance w $ displays ms)
+discardWindow ms w = MasterState (mouseState ms) (removeFromFirstAppearance w $ displays ms) (screenWidth ms) (screenHeight ms)
   where removeFromFirstAppearance _ [] = []
         removeFromFirstAppearance win (disp:disps)
           | win `elem` (windows disp) = (RWMDisplay (filter (\x -> x /= win) $ windows disp) $ showing disp):disps
           | otherwise = disp:(removeFromFirstAppearance win disps)
+
+extractWindowsToShow :: MasterState -> [Window]
+extractWindowsToShow ms = extractWindowsFromRWMDs $ displays ms
+  where extractWindowsFromRWMDs [] = []
+        extractWindowsFromRWMDs (rwmd:rwmds)
+          | showing rwmd = (windows rwmd) ++ (extractWindowsFromRWMDs rwmds)
+          | otherwise = extractWindowsFromRWMDs rwmds
+
+positionWindows :: Display -> MasterState -> IO ()
+positionWindows dpy ms = positionWindowsHelper 0 $ extractedWindows
+  where extractedWindows = extractWindowsToShow ms
+        positionWindowsHelper _ [] = return ()
+        positionWindowsHelper _ [win] = moveResizeWindow dpy win 0 0 (fromIntegral scrW) (fromIntegral scrH)
+        positionWindowsHelper n (win:wins)
+          | n == 0 = do
+              moveResizeWindow dpy win 0 0 (fromIntegral $ scrW `div` 2) $ fromIntegral scrH
+              positionWindowsHelper (n + 1) wins
+          | otherwise = do
+              moveResizeWindow dpy win (fromIntegral $ scrW `div` 2) (fromIntegral $ (n - 1) * scrH `div` stackHeight) (fromIntegral $ scrW `div` 2) (fromIntegral $ scrH `div` stackHeight)
+              positionWindowsHelper (n + 1) wins
+        scrW = screenWidth ms
+        scrH = screenHeight ms
+        stackHeight = length extractedWindows - 1
 
 loop :: Display -> MasterState -> IO ()
 loop dpy state = do
@@ -50,9 +75,11 @@ loop dpy state = do
     nextEvent dpy e
     t <- get_EventType e
     w <- get_Window e
-    if t == createNotify then do return $ makeWindow state w
-    else if t == destroyNotify then do return $ discardWindow state w
+    ev <- getEvent e
+    if t == createNotify then do return $ makeWindow state $ ev_subwindow ev
+    else if t == destroyNotify then do return $ discardWindow state $ ev_subwindow ev
     else do return state
+  positionWindows dpy newState
   loop dpy newState
     
 main :: IO ()
@@ -62,4 +89,4 @@ main = do
   grabKey dpy f1Key mod1Mask (defaultRootWindow dpy) True grabModeAsync grabModeSync
   grabButton dpy 1 mod1Mask (defaultRootWindow dpy) True (buttonPressMask + buttonReleaseMask + pointerMotionMask) grabModeAsync grabModeAsync 0 0
   grabButton dpy 3 mod1Mask (defaultRootWindow dpy) True (buttonPressMask + buttonReleaseMask + pointerMotionMask) grabModeAsync grabModeAsync 0 0
-  loop dpy $ MasterState NoPrevMouse $ (RWMDisplay [] True):(take 8 $ repeat $ RWMDisplay [] False)
+  loop dpy $ MasterState NoPrevMouse ((RWMDisplay [] True):(take 8 $ repeat $ RWMDisplay [] False)) 2256 1504
