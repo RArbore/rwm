@@ -48,14 +48,14 @@ mouseIsPrev NoPrevMouse = False
 mouseIsPrev _ = True
 
 makeWindow :: MasterState -> Window -> MasterState
-makeWindow ms w = if w `elem` (concat $ map windows $ displays ms) then ms else MasterState (mouseState ms) (addToFirstEnabled w $ displays ms) (screenWidth ms) (screenHeight ms) (keycodesToAction ms)
+makeWindow ms w = if w `elem` (concat $ map windows $ displays ms) then ms else ms {displays = addToFirstEnabled w $ displays ms}
   where addToFirstEnabled _ [] = []
         addToFirstEnabled win (disp:disps)
           | showing disp = (RWMDisplay (win:(windows disp)) True):disps
           | otherwise = disp:(addToFirstEnabled win disps)
 
 discardWindow :: MasterState -> Window -> MasterState
-discardWindow ms w = MasterState (mouseState ms) (removeFromFirstAppearance w $ displays ms) (screenWidth ms) (screenHeight ms) (keycodesToAction ms)
+discardWindow ms w = ms {displays = removeFromFirstAppearance w $ displays ms}
   where removeFromFirstAppearance _ [] = []
         removeFromFirstAppearance win (disp:disps)
           | win `elem` (windows disp) = (RWMDisplay (filter (\x -> x /= win) $ windows disp) $ showing disp):disps
