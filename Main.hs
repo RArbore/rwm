@@ -13,39 +13,54 @@
 import Control.Monad
 
 import Data.Int
+import Data.Maybe
 import qualified Data.HashMap.Strict as HM
   
 import Graphics.X11
 import Graphics.X11.Xlib.Extras
 
-data RWMAction = CloseWindow deriving (Show, Eq)
-data UserAction = RunProgram { command :: String } | RWMAction deriving (Show, Eq)
+import System.Posix.Process
 
-keybindings :: [(String, UserAction)]
+data RWMAction = CloseWindow deriving (Show, Eq)
+data UserAction = RunCommand { command :: String } | RWMAction deriving (Show, Eq)
+
+keybindings :: [(KeySym, UserAction)]
 keybindings = [
-  ("r", RunProgram "dmenu_run"),
-  ("e", RunProgram "emacsclient -c -a emacs")
-                          ]
+  (xK_r, RunCommand "dmenu_run"),
+  (xK_e, RunCommand "emacsclient -c"),
+  (xK_Return, RunCommand "alacritty")
+              ]
 
 data RWMDisplay = RWMDisplay { windows :: [Window],
                                showing :: Bool } deriving (Show, Eq)
 
-instance Show WindowAttributes where
-  show _ = ""
 data MouseState = NoPrevMouse | MouseState { prevButtonEvent :: Event,
-                                             prevButtonWindowAttr :: WindowAttributes } deriving (Show)
+                                             prevButtonWindowAttr :: WindowAttributes }
+instance Show MouseState where
+  show s = show $ prevButtonEvent s
 
-instance Eq MasterState where
-  ms1 == ms2 = ((displays ms1) == (displays ms2)) && ((screenWidth ms1) == (screenWidth ms2)) && ((screenHeight ms1) == (screenHeight ms2))
 data MasterState = MasterState { mouseState :: MouseState,
                                  displays :: [RWMDisplay],
                                  screenWidth :: Int,
                                  screenHeight :: Int,
                                  keycodesToAction :: HM.HashMap KeyCode UserAction } deriving (Show)
+instance Eq MasterState where
+  ms1 == ms2 = ((displays ms1) == (displays ms2)) && ((screenWidth ms1) == (screenWidth ms2)) && ((screenHeight ms1) == (screenHeight ms2))
 
 mouseIsPrev :: MouseState -> Bool
 mouseIsPrev NoPrevMouse = False
 mouseIsPrev _ = True
+
+executeAction :: MasterState -> UserAction -> IO ()
+executeAction ms (RunCommand cmd) = do
+  forkProcess $ executeFile "/bin/sh" False ["-c", cmd] Nothing
+  return ()
+
+executeKeyCode :: MasterState -> KeyCode -> IO ()
+executeKeyCode ms kc
+  | isJust lookupResult = executeAction ms $ fromJust lookupResult
+  | otherwise = return ()
+  where lookupResult = HM.lookup kc $ keycodesToAction ms
 
 makeWindow :: MasterState -> Window -> MasterState
 makeWindow ms w = if w `elem` (concat $ map windows $ displays ms) then ms else ms {displays = addToFirstEnabled w $ displays ms}
@@ -94,7 +109,10 @@ loop dpy state = do
     w <- get_Window e
     ev <- getEvent e
     appendFile "/home/russel/Work/rwm/rwm.log" $ "EVENT : " ++ (show t) ++ " " ++ (show ev) ++ ['\n']
-    if t == mapRequest then do
+    if t == keyPress then do
+      executeKeyCode state $ ev_keycode ev
+      return state
+    else if t == mapRequest then do
       mapWindow dpy (ev_window ev)
       return $ makeWindow state $ ev_window ev
     else if t == destroyNotify then do
@@ -104,10 +122,10 @@ loop dpy state = do
   else do return ()
   loop dpy newState
 
-grabKeys :: Display -> [(String, UserAction)] -> IO [(KeyCode, UserAction)]
+grabKeys :: Display -> [(KeySym, UserAction)] -> IO [(KeyCode, UserAction)]
 grabKeys _ [] = return []
 grabKeys dpy (x:xs) = do
-  key <- keysymToKeycode dpy (stringToKeysym $ fst x)
+  key <- keysymToKeycode dpy (fst x)
   grabKey dpy key mod4Mask (defaultRootWindow dpy) True grabModeAsync grabModeAsync
   rest <- grabKeys dpy xs
   return $ (key, snd x):rest
