@@ -98,7 +98,7 @@ main = do
   dpy <- openDisplay ""
   selectInput dpy (defaultRootWindow dpy) (substructureRedirectMask + substructureNotifyMask + buttonPressMask + pointerMotionMask + enterWindowMask + leaveWindowMask + structureNotifyMask)
   f1Key <- keysymToKeycode dpy (stringToKeysym "F1")
-  grabKey dpy f1Key mod1Mask (defaultRootWindow dpy) True grabModeAsync grabModeSync
-  grabButton dpy 1 mod1Mask (defaultRootWindow dpy) True (buttonPressMask + buttonReleaseMask + pointerMotionMask) grabModeAsync grabModeAsync 0 0
-  grabButton dpy 3 mod1Mask (defaultRootWindow dpy) True (buttonPressMask + buttonReleaseMask + pointerMotionMask) grabModeAsync grabModeAsync 0 0
-  loop dpy $ MasterState NoPrevMouse ((RWMDisplay [] True):(take 8 $ repeat $ RWMDisplay [] False)) 2256 1504
+  grabKey dpy f1Key mod4Mask (defaultRootWindow dpy) True grabModeAsync grabModeSync
+  grabButton dpy 1 mod4Mask (defaultRootWindow dpy) True (buttonPressMask + buttonReleaseMask + pointerMotionMask) grabModeAsync grabModeAsync 0 0
+  grabButton dpy 3 mod4Mask (defaultRootWindow dpy) True (buttonPressMask + buttonReleaseMask + pointerMotionMask) grabModeAsync grabModeAsync 0 0
+  loop dpy $ MasterState NoPrevMouse ((RWMDisplay [] True):(take 8 $ repeat $ RWMDisplay [] False)) (fromIntegral $ displayWidth dpy $ defaultScreen dpy) (fromIntegral $ displayHeight dpy $ defaultScreen dpy)
