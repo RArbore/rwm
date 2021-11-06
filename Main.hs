@@ -22,10 +22,11 @@ import Graphics.X11.Xlib.Extras
 import System.Posix.Process
 
 data RWMAction = CloseWindow deriving (Show, Eq)
-data UserAction = RunCommand { command :: String } | RWMAction deriving (Show, Eq)
+data UserAction = RunCommand { command :: String } | RunAction RWMAction deriving (Show, Eq)
 
 keybindings :: [(KeySym, UserAction)]
 keybindings = [
+  (xK_c, RunAction CloseWindow),
   (xK_r, RunCommand "dmenu_run"),
   (xK_e, RunCommand "emacsclient -c"),
   (xK_Return, RunCommand "alacritty")
@@ -43,6 +44,8 @@ data MasterState = MasterState { mouseState :: MouseState,
                                  displays :: [RWMDisplay],
                                  screenWidth :: Int,
                                  screenHeight :: Int,
+                                 focusedWindow :: Window,
+                                 xDisplay :: Display,
                                  keycodesToAction :: HM.HashMap KeyCode UserAction } deriving (Show)
 instance Eq MasterState where
   ms1 == ms2 = ((displays ms1) == (displays ms2)) && ((screenWidth ms1) == (screenWidth ms2)) && ((screenHeight ms1) == (screenHeight ms2))
@@ -51,30 +54,40 @@ mouseIsPrev :: MouseState -> Bool
 mouseIsPrev NoPrevMouse = False
 mouseIsPrev _ = True
 
-executeAction :: MasterState -> UserAction -> IO ()
+executeAction :: MasterState -> UserAction -> IO MasterState
 executeAction ms (RunCommand cmd) = do
   forkProcess $ executeFile "/bin/sh" False ["-c", cmd] Nothing
-  return ()
+  return ms
+executeAction ms (RunAction CloseWindow) = do
+  if focusedWindow ms /= (defaultRootWindow $ xDisplay ms) then do
+    destroyWindow (xDisplay ms) $ focusedWindow ms
+    return $ discardWindow ms $ focusedWindow ms
+  else do return (ms)
 
-executeKeyCode :: MasterState -> KeyCode -> IO ()
+executeKeyCode :: MasterState -> KeyCode -> IO MasterState
 executeKeyCode ms kc
   | isJust lookupResult = executeAction ms $ fromJust lookupResult
-  | otherwise = return ()
+  | otherwise = return ms
   where lookupResult = HM.lookup kc $ keycodesToAction ms
 
 makeWindow :: MasterState -> Window -> MasterState
-makeWindow ms w = if w `elem` (concat $ map windows $ displays ms) then ms else ms {displays = addToFirstEnabled w $ displays ms}
+makeWindow ms w = if w `elem` (concat $ map windows $ displays ms) then ms else ms {displays = addToFirstEnabled w $ displays ms, focusedWindow = w}
   where addToFirstEnabled _ [] = []
         addToFirstEnabled win (disp:disps)
           | showing disp = (RWMDisplay (win:(windows disp)) True):disps
           | otherwise = disp:(addToFirstEnabled win disps)
 
 discardWindow :: MasterState -> Window -> MasterState
-discardWindow ms w = ms {displays = removeFromFirstAppearance w $ displays ms}
+discardWindow ms w = ms {displays = removeFromFirstAppearance w $ displays ms, focusedWindow = if w == focusedWindow ms then (if isJust firstWindow then fromJust firstWindow else defaultRootWindow $ xDisplay ms) else w}
   where removeFromFirstAppearance _ [] = []
         removeFromFirstAppearance win (disp:disps)
           | win `elem` (windows disp) = (RWMDisplay (filter (\x -> x /= win) $ windows disp) $ showing disp):disps
           | otherwise = disp:(removeFromFirstAppearance win disps)
+        findFirstWindow [] = Nothing
+        findFirstWindow (disp:disps)
+          | showing disp && (length $ windows disp) > 0 = Just $ head $ windows disp
+          | otherwise = findFirstWindow disps
+        firstWindow = findFirstWindow $ displays ms
 
 extractWindowsToShow :: MasterState -> [Window]
 extractWindowsToShow ms = extractWindowsFromRWMDs $ displays ms
@@ -111,7 +124,6 @@ loop dpy state = do
     appendFile "/home/russel/Work/rwm/rwm.log" $ "EVENT : " ++ (show t) ++ " " ++ (show ev) ++ ['\n']
     if t == keyPress then do
       executeKeyCode state $ ev_keycode ev
-      return state
     else if t == mapRequest then do
       mapWindow dpy (ev_window ev)
       return $ makeWindow state $ ev_window ev
@@ -137,4 +149,4 @@ main = do
   keycodeActions <- grabKeys dpy $ keybindings
   grabButton dpy 1 mod4Mask (defaultRootWindow dpy) True (buttonPressMask + buttonReleaseMask + pointerMotionMask) grabModeAsync grabModeAsync 0 0
   grabButton dpy 3 mod4Mask (defaultRootWindow dpy) True (buttonPressMask + buttonReleaseMask + pointerMotionMask) grabModeAsync grabModeAsync 0 0
-  loop dpy $ MasterState NoPrevMouse ((RWMDisplay [] True):(take 8 $ repeat $ RWMDisplay [] False)) (fromIntegral $ displayWidth dpy $ defaultScreen dpy) (fromIntegral $ displayHeight dpy $ defaultScreen dpy) (HM.fromList keycodeActions)
+  loop dpy $ MasterState NoPrevMouse ((RWMDisplay [] True):(take 8 $ repeat $ RWMDisplay [] False)) (fromIntegral $ displayWidth dpy $ defaultScreen dpy) (fromIntegral $ displayHeight dpy $ defaultScreen dpy) (defaultRootWindow dpy) dpy (HM.fromList keycodeActions)
