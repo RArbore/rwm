@@ -18,15 +18,19 @@ import Graphics.X11
 import Graphics.X11.Xlib.Extras
 
 data RWMDisplay = RWMDisplay { windows :: [Window],
-                               showing :: Bool }
+                               showing :: Bool } deriving (Show, Eq)
 
+instance Show WindowAttributes where
+  show _ = ""
 data MouseState = NoPrevMouse | MouseState { prevButtonEvent :: Event,
-                                             prevButtonWindowAttr :: WindowAttributes }
+                                             prevButtonWindowAttr :: WindowAttributes } deriving (Show)
 
+instance Eq MasterState where
+  ms1 == ms2 = ((displays ms1) == (displays ms2)) && ((screenWidth ms1) == (screenWidth ms2)) && ((screenHeight ms1) == (screenHeight ms2))
 data MasterState = MasterState { mouseState :: MouseState,
                                  displays :: [RWMDisplay],
                                  screenWidth :: Int,
-                                 screenHeight :: Int }
+                                 screenHeight :: Int } deriving (Show)
 
 mouseIsPrev :: MouseState -> Bool
 mouseIsPrev NoPrevMouse = False
@@ -75,16 +79,20 @@ loop dpy state = do
     nextEvent dpy e
     t <- get_EventType e
     w <- get_Window e
-    ev <- getEvent e
-    if t == createNotify then do return $ makeWindow state $ ev_subwindow ev
-    else if t == destroyNotify then do return $ discardWindow state $ ev_subwindow ev
+    appendFile "/home/russel/Work/rwm/rwm.log" $ "EVENT : " ++ (show t) ++ " " ++ (show w) ++ ['\n']
+    if t == createNotify then do
+      return $ makeWindow state $ w
+    else if t == destroyNotify then do
+      return $ discardWindow state $ w
     else do return state
-  positionWindows dpy newState
+  if state /= newState then do positionWindows dpy newState
+  else do return ()
   loop dpy newState
     
 main :: IO ()
 main = do
   dpy <- openDisplay ""
+  selectInput dpy (defaultRootWindow dpy) (substructureRedirectMask + substructureNotifyMask + buttonPressMask + pointerMotionMask + enterWindowMask + leaveWindowMask + structureNotifyMask)
   f1Key <- keysymToKeycode dpy (stringToKeysym "F1")
   grabKey dpy f1Key mod1Mask (defaultRootWindow dpy) True grabModeAsync grabModeSync
   grabButton dpy 1 mod1Mask (defaultRootWindow dpy) True (buttonPressMask + buttonReleaseMask + pointerMotionMask) grabModeAsync grabModeAsync 0 0
