@@ -28,7 +28,8 @@ keybindings :: [(KeySym, UserAction)]
 keybindings = [
   (xK_c, RunAction CloseWindow),
   (xK_r, RunCommand "dmenu_run"),
-  (xK_e, RunCommand "emacsclient -c"),
+  (xK_e, RunCommand "emacs"),
+  (xK_q, RunCommand "rwm"),
   (xK_Return, RunCommand "alacritty")
               ]
 
@@ -59,7 +60,7 @@ executeAction ms (RunCommand cmd) = do
   forkProcess $ executeFile "/bin/sh" False ["-c", cmd] Nothing
   return ms
 executeAction ms (RunAction CloseWindow) = do
-  if focusedWindow ms /= (defaultRootWindow $ xDisplay ms) then do
+  if focusedWindow ms /= (defaultRootWindow $ xDisplay ms) && (focusedWindow ms) `elem` (concat $ map windows $ displays ms) then do
     destroyWindow (xDisplay ms) $ focusedWindow ms
     return $ discardWindow ms $ focusedWindow ms
   else do return (ms)
