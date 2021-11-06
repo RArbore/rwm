@@ -31,7 +31,11 @@ mouseIsPrev NoPrevMouse = False
 mouseIsPrev _ = True
 
 makeWindow :: MasterState -> Window -> MasterState
-makeWindow ms w = ms
+makeWindow ms w = MasterState (mouseState ms) (addToFirstEnabled w $ displays ms)
+  where addToFirstEnabled _ [] = []
+        addToFirstEnabled win (disp:disps)
+          | showing disp = (RWMDisplay (win:(windows disp)) True):disps
+          | otherwise = disp:(addToFirstEnabled w disps)
 
 loop :: Display -> MasterState -> IO ()
 loop dpy state = do
