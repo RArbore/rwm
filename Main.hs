@@ -79,11 +79,12 @@ loop dpy state = do
     nextEvent dpy e
     t <- get_EventType e
     w <- get_Window e
-    appendFile "/home/russel/Work/rwm/rwm.log" $ "EVENT : " ++ (show t) ++ " " ++ (show w) ++ ['\n']
-    if t == createNotify then do
-      return $ makeWindow state $ w
+    ev <- getEvent e
+    appendFile "/home/russel/Work/rwm/rwm.log" $ "EVENT : " ++ (show t) ++ " " ++ (show w) ++ " " ++ (show ev) ++ ['\n']
+    if t == mapRequest then do
+      return $ makeWindow state $ ev_window ev
     else if t == destroyNotify then do
-      return $ discardWindow state $ w
+      return $ discardWindow state $ ev_window ev
     else do return state
   if state /= newState then do positionWindows dpy newState
   else do return ()
