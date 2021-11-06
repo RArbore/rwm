@@ -13,9 +13,19 @@
 import Control.Monad
 
 import Data.Int
+import qualified Data.HashMap.Strict as HM
   
 import Graphics.X11
 import Graphics.X11.Xlib.Extras
+
+data RWMAction = CloseWindow deriving (Show, Eq)
+data UserAction = RunProgram { command :: String } | RWMAction deriving (Show, Eq)
+
+keybindings :: [(String, UserAction)]
+keybindings = [
+  ("r", RunProgram "dmenu_run"),
+  ("e", RunProgram "emacsclient -c -a emacs")
+                          ]
 
 data RWMDisplay = RWMDisplay { windows :: [Window],
                                showing :: Bool } deriving (Show, Eq)
@@ -30,21 +40,22 @@ instance Eq MasterState where
 data MasterState = MasterState { mouseState :: MouseState,
                                  displays :: [RWMDisplay],
                                  screenWidth :: Int,
-                                 screenHeight :: Int } deriving (Show)
+                                 screenHeight :: Int,
+                                 keycodesToAction :: HM.HashMap KeyCode UserAction } deriving (Show)
 
 mouseIsPrev :: MouseState -> Bool
 mouseIsPrev NoPrevMouse = False
 mouseIsPrev _ = True
 
 makeWindow :: MasterState -> Window -> MasterState
-makeWindow ms w = if w `elem` (concat $ map windows $ displays ms) then ms else MasterState (mouseState ms) (addToFirstEnabled w $ displays ms) (screenWidth ms) (screenHeight ms)
+makeWindow ms w = if w `elem` (concat $ map windows $ displays ms) then ms else MasterState (mouseState ms) (addToFirstEnabled w $ displays ms) (screenWidth ms) (screenHeight ms) (keycodesToAction ms)
   where addToFirstEnabled _ [] = []
         addToFirstEnabled win (disp:disps)
           | showing disp = (RWMDisplay (win:(windows disp)) True):disps
           | otherwise = disp:(addToFirstEnabled win disps)
 
 discardWindow :: MasterState -> Window -> MasterState
-discardWindow ms w = MasterState (mouseState ms) (removeFromFirstAppearance w $ displays ms) (screenWidth ms) (screenHeight ms)
+discardWindow ms w = MasterState (mouseState ms) (removeFromFirstAppearance w $ displays ms) (screenWidth ms) (screenHeight ms) (keycodesToAction ms)
   where removeFromFirstAppearance _ [] = []
         removeFromFirstAppearance win (disp:disps)
           | win `elem` (windows disp) = (RWMDisplay (filter (\x -> x /= win) $ windows disp) $ showing disp):disps
@@ -92,13 +103,20 @@ loop dpy state = do
   if state /= newState then do positionWindows dpy newState
   else do return ()
   loop dpy newState
+
+grabKeys :: Display -> [(String, UserAction)] -> IO [(KeyCode, UserAction)]
+grabKeys _ [] = return []
+grabKeys dpy (x:xs) = do
+  key <- keysymToKeycode dpy (stringToKeysym $ fst x)
+  grabKey dpy key mod4Mask (defaultRootWindow dpy) True grabModeAsync grabModeAsync
+  rest <- grabKeys dpy xs
+  return $ (key, snd x):rest
     
 main :: IO ()
 main = do
   dpy <- openDisplay ""
   selectInput dpy (defaultRootWindow dpy) (substructureRedirectMask + substructureNotifyMask + buttonPressMask + pointerMotionMask + enterWindowMask + leaveWindowMask + structureNotifyMask)
-  f1Key <- keysymToKeycode dpy (stringToKeysym "F1")
-  grabKey dpy f1Key mod4Mask (defaultRootWindow dpy) True grabModeAsync grabModeSync
+  keycodeActions <- grabKeys dpy $ keybindings
   grabButton dpy 1 mod4Mask (defaultRootWindow dpy) True (buttonPressMask + buttonReleaseMask + pointerMotionMask) grabModeAsync grabModeAsync 0 0
   grabButton dpy 3 mod4Mask (defaultRootWindow dpy) True (buttonPressMask + buttonReleaseMask + pointerMotionMask) grabModeAsync grabModeAsync 0 0
-  loop dpy $ MasterState NoPrevMouse ((RWMDisplay [] True):(take 8 $ repeat $ RWMDisplay [] False)) (fromIntegral $ displayWidth dpy $ defaultScreen dpy) (fromIntegral $ displayHeight dpy $ defaultScreen dpy)
+  loop dpy $ MasterState NoPrevMouse ((RWMDisplay [] True):(take 8 $ repeat $ RWMDisplay [] False)) (fromIntegral $ displayWidth dpy $ defaultScreen dpy) (fromIntegral $ displayHeight dpy $ defaultScreen dpy) (HM.fromList keycodeActions)
