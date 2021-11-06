@@ -61,7 +61,9 @@ positionWindows :: Display -> MasterState -> IO ()
 positionWindows dpy ms = positionWindowsHelper 0 $ extractedWindows
   where extractedWindows = extractWindowsToShow ms
         positionWindowsHelper _ [] = return ()
-        positionWindowsHelper _ [win] = moveResizeWindow dpy win 0 0 (fromIntegral scrW) (fromIntegral scrH)
+        positionWindowsHelper n [win]
+          | n == 0 = moveResizeWindow dpy win 0 0 (fromIntegral scrW) (fromIntegral scrH)
+          | otherwise = moveResizeWindow dpy win (fromIntegral $ scrW `div` 2) (fromIntegral $ (n - 1) * scrH `div` stackHeight) (fromIntegral $ scrW `div` 2) (fromIntegral $ scrH `div` stackHeight)
         positionWindowsHelper n (win:wins)
           | n == 0 = do
               moveResizeWindow dpy win 0 0 (fromIntegral $ scrW `div` 2) $ fromIntegral scrH
@@ -82,9 +84,6 @@ loop dpy state = do
     ev <- getEvent e
     appendFile "/home/russel/Work/rwm/rwm.log" $ "EVENT : " ++ (show t) ++ " " ++ (show w) ++ " " ++ (show ev) ++ ['\n']
     if t == mapRequest then do
-      appendFile "/home/russel/Work/rwm/rwm.log" $ "INSIDE BEFORE : " ++ (show $ ev_window ev) ++ ['\n']
-      moveResizeWindow dpy (ev_window ev) 0 0 2256 1504
-      appendFile "/home/russel/Work/rwm/rwm.log" $ "INSIDE AFTER : " ++ (show $ ev_window ev) ++ ['\n']
       mapWindow dpy (ev_window ev)
       return $ makeWindow state $ ev_window ev
     else if t == destroyNotify then do
