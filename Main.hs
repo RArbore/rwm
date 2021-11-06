@@ -82,6 +82,10 @@ loop dpy state = do
     ev <- getEvent e
     appendFile "/home/russel/Work/rwm/rwm.log" $ "EVENT : " ++ (show t) ++ " " ++ (show w) ++ " " ++ (show ev) ++ ['\n']
     if t == mapRequest then do
+      appendFile "/home/russel/Work/rwm/rwm.log" $ "INSIDE BEFORE : " ++ (show $ ev_window ev) ++ ['\n']
+      moveResizeWindow dpy (ev_window ev) 0 0 2256 1504
+      appendFile "/home/russel/Work/rwm/rwm.log" $ "INSIDE AFTER : " ++ (show $ ev_window ev) ++ ['\n']
+      mapWindow dpy (ev_window ev)
       return $ makeWindow state $ ev_window ev
     else if t == destroyNotify then do
       return $ discardWindow state $ ev_window ev
