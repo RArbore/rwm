@@ -35,7 +35,14 @@ makeWindow ms w = MasterState (mouseState ms) (addToFirstEnabled w $ displays ms
   where addToFirstEnabled _ [] = []
         addToFirstEnabled win (disp:disps)
           | showing disp = (RWMDisplay (win:(windows disp)) True):disps
-          | otherwise = disp:(addToFirstEnabled w disps)
+          | otherwise = disp:(addToFirstEnabled win disps)
+
+discardWindow :: MasterState -> Window -> MasterState
+discardWindow ms w = MasterState (mouseState ms) (removeFromFirstAppearance w $ displays ms)
+  where removeFromFirstAppearance _ [] = []
+        removeFromFirstAppearance win (disp:disps)
+          | win `elem` (windows disp) = (RWMDisplay (filter (\x -> x /= win) $ windows disp) $ showing disp):disps
+          | otherwise = disp:(removeFromFirstAppearance win disps)
 
 loop :: Display -> MasterState -> IO ()
 loop dpy state = do
@@ -44,6 +51,7 @@ loop dpy state = do
     t <- get_EventType e
     w <- get_Window e
     if t == createNotify then do return $ makeWindow state w
+    else if t == destroyNotify then do return $ discardWindow state w
     else do return state
   loop dpy newState
     
