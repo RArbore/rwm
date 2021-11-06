@@ -37,7 +37,7 @@ mouseIsPrev NoPrevMouse = False
 mouseIsPrev _ = True
 
 makeWindow :: MasterState -> Window -> MasterState
-makeWindow ms w = MasterState (mouseState ms) (addToFirstEnabled w $ displays ms) (screenWidth ms) (screenHeight ms)
+makeWindow ms w = if w `elem` (concat $ map windows $ displays ms) then ms else MasterState (mouseState ms) (addToFirstEnabled w $ displays ms) (screenWidth ms) (screenHeight ms)
   where addToFirstEnabled _ [] = []
         addToFirstEnabled win (disp:disps)
           | showing disp = (RWMDisplay (win:(windows disp)) True):disps
@@ -82,7 +82,7 @@ loop dpy state = do
     t <- get_EventType e
     w <- get_Window e
     ev <- getEvent e
-    appendFile "/home/russel/Work/rwm/rwm.log" $ "EVENT : " ++ (show t) ++ " " ++ (show w) ++ " " ++ (show ev) ++ ['\n']
+    appendFile "/home/russel/Work/rwm/rwm.log" $ "EVENT : " ++ (show t) ++ " " ++ (show ev) ++ ['\n']
     if t == mapRequest then do
       mapWindow dpy (ev_window ev)
       return $ makeWindow state $ ev_window ev
