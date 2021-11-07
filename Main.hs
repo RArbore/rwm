@@ -29,7 +29,7 @@ keybindings = [
   (xK_c, RunAction CloseWindow),
   (xK_r, RunCommand "dmenu_run"),
   (xK_e, RunCommand "emacs"),
-  (xK_q, RunCommand "rwm"),
+  (xK_q, RunCommand "killall rwm"),
   (xK_Return, RunCommand "alacritty")
               ]
 
@@ -122,11 +122,11 @@ loop dpy state = do
     t <- get_EventType e
     w <- get_Window e
     ev <- getEvent e
-    appendFile "/home/russel/Work/rwm/rwm.log" $ "EVENT : " ++ (show t) ++ " " ++ (show ev) ++ ['\n']
+    if t == destroyNotify || t == unmapNotify || t == mapNotify || t == mapRequest then appendFile "/home/russel/Work/rwm/rwm.log" $ "EVENT : " ++ (show t) ++ " " ++ (show $ ev_window ev) ++ ['\n'] else return ()
     if t == keyPress then do
       executeKeyCode state $ ev_keycode ev
     else if t == mapRequest then do
-      mapWindow dpy (ev_window ev)
+      if w `elem` (concat $ map windows $ displays state) then return () else mapWindow dpy (ev_window ev)
       return $ makeWindow state $ ev_window ev
     else if t == destroyNotify then do
       return $ discardWindow state $ ev_window ev
