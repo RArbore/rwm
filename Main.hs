@@ -13,6 +13,7 @@
 import Control.Monad
 
 import Data.Int
+import Data.List
 import Data.Maybe
 import qualified Data.HashMap.Strict as HM
   
@@ -47,9 +48,16 @@ data MasterState = MasterState { mouseState :: MouseState,
                                  screenHeight :: Int,
                                  focusedWindow :: Window,
                                  xDisplay :: Display,
-                                 keycodesToAction :: HM.HashMap KeyCode UserAction } deriving (Show)
+                                 keycodesToAction :: HM.HashMap KeyCode UserAction }
+instance Show MasterState where
+  show ms = show (focusedWindow ms) ++ " | " ++ (concat $ intersperse " " $ map show $ concat $ map windows $ displays ms)
 instance Eq MasterState where
-  ms1 == ms2 = ((displays ms1) == (displays ms2)) && ((screenWidth ms1) == (screenWidth ms2)) && ((screenHeight ms1) == (screenHeight ms2))
+  ms1 == ms2 = ((displays ms1) == (displays ms2)) &&
+               ((screenWidth ms1) == (screenWidth ms2)) &&
+               ((screenHeight ms1) == (screenHeight ms2)) &&
+               ((focusedWindow ms1) == (focusedWindow ms2)) &&
+               ((xDisplay ms1) == (xDisplay ms2)) &&
+               ((keycodesToAction ms1) == (keycodesToAction ms2))
 
 mouseIsPrev :: MouseState -> Bool
 mouseIsPrev NoPrevMouse = False
@@ -79,8 +87,9 @@ makeWindow ms w = if w `elem` (concat $ map windows $ displays ms) then ms else 
           | otherwise = disp:(addToFirstEnabled win disps)
 
 discardWindow :: MasterState -> Window -> MasterState
-discardWindow ms w = ms {displays = removeFromFirstAppearance w $ displays ms, focusedWindow = if w == focusedWindow ms then (if isJust firstWindow then fromJust firstWindow else defaultRootWindow $ xDisplay ms) else w}
-  where removeFromFirstAppearance _ [] = []
+discardWindow ms w = ms {displays = removedFirstAppearance, focusedWindow = if w == focusedWindow ms then (if isJust firstWindow then fromJust firstWindow else defaultRootWindow $ xDisplay ms) else focusedWindow ms}
+  where removedFirstAppearance = removeFromFirstAppearance w $ displays ms
+        removeFromFirstAppearance _ [] = []
         removeFromFirstAppearance win (disp:disps)
           | win `elem` (windows disp) = (RWMDisplay (filter (\x -> x /= win) $ windows disp) $ showing disp):disps
           | otherwise = disp:(removeFromFirstAppearance win disps)
@@ -88,7 +97,7 @@ discardWindow ms w = ms {displays = removeFromFirstAppearance w $ displays ms, f
         findFirstWindow (disp:disps)
           | showing disp && (length $ windows disp) > 0 = Just $ head $ windows disp
           | otherwise = findFirstWindow disps
-        firstWindow = findFirstWindow $ displays ms
+        firstWindow = findFirstWindow removedFirstAppearance
 
 extractWindowsToShow :: MasterState -> [Window]
 extractWindowsToShow ms = extractWindowsFromRWMDs $ displays ms
@@ -122,7 +131,6 @@ loop dpy state = do
     t <- get_EventType e
     w <- get_Window e
     ev <- getEvent e
-    if t == destroyNotify || t == unmapNotify || t == mapNotify || t == mapRequest then appendFile "/home/russel/Work/rwm/rwm.log" $ "EVENT : " ++ (show t) ++ " " ++ (show $ ev_window ev) ++ ['\n'] else return ()
     if t == keyPress then do
       executeKeyCode state $ ev_keycode ev
     else if t == mapRequest then do
