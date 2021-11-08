@@ -29,7 +29,8 @@ keybindings :: [(KeySym, UserAction)]
 keybindings = [
   (xK_c, RunAction CloseWindow),
   (xK_r, RunCommand "dmenu_run"),
-  (xK_e, RunCommand "emacs"),
+  (xK_e, RunCommand "emacsclient -c -a emacs"),
+  (xK_b, RunCommand "icecat"),
   (xK_q, RunCommand "killall rwm"),
   (xK_Return, RunCommand "alacritty")
               ]
@@ -48,6 +49,7 @@ data MasterState = MasterState { mouseState :: MouseState,
                                  screenHeight :: Int,
                                  focusedWindow :: Window,
                                  xDisplay :: Display,
+                                 gap :: Int,
                                  keycodesToAction :: HM.HashMap KeyCode UserAction }
 instance Show MasterState where
   show ms = show (focusedWindow ms) ++ " | " ++ (concat $ intersperse " " $ map show $ concat $ map windows $ displays ms)
@@ -57,6 +59,7 @@ instance Eq MasterState where
                ((screenHeight ms1) == (screenHeight ms2)) &&
                ((focusedWindow ms1) == (focusedWindow ms2)) &&
                ((xDisplay ms1) == (xDisplay ms2)) &&
+               ((gap ms1) == (gap ms2)) &&
                ((keycodesToAction ms1) == (keycodesToAction ms2))
 
 mouseIsPrev :: MouseState -> Bool
@@ -108,21 +111,23 @@ extractWindowsToShow ms = extractWindowsFromRWMDs $ displays ms
 
 positionWindows :: Display -> MasterState -> IO ()
 positionWindows dpy ms = positionWindowsHelper 0 $ extractedWindows
-  where extractedWindows = extractWindowsToShow ms
+  where windowGap = gap ms
+        extractedWindows = extractWindowsToShow ms
         positionWindowsHelper _ [] = return ()
         positionWindowsHelper n [win]
-          | n == 0 = moveResizeWindow dpy win 0 0 (fromIntegral scrW) (fromIntegral scrH)
-          | otherwise = moveResizeWindow dpy win (fromIntegral $ scrW `div` 2) (fromIntegral $ (n - 1) * scrH `div` stackHeight) (fromIntegral $ scrW `div` 2) (fromIntegral $ scrH `div` stackHeight)
+          | n == 0 = moveResizeWindow dpy win (fromIntegral windowGap) (fromIntegral windowGap) (fromIntegral $ scrW - 2 * windowGap) (fromIntegral $ scrH - 2 * windowGap)
+          | otherwise = stackMoveResizeWindow n win
         positionWindowsHelper n (win:wins)
           | n == 0 = do
-              moveResizeWindow dpy win 0 0 (fromIntegral $ scrW `div` 2) $ fromIntegral scrH
+              moveResizeWindow dpy win (fromIntegral windowGap) (fromIntegral windowGap) (fromIntegral $ scrW `div` 2 - 3 * windowGap `div` 2) $ fromIntegral (scrH - 2 * windowGap)
               positionWindowsHelper (n + 1) wins
           | otherwise = do
-              moveResizeWindow dpy win (fromIntegral $ scrW `div` 2) (fromIntegral $ (n - 1) * scrH `div` stackHeight) (fromIntegral $ scrW `div` 2) (fromIntegral $ scrH `div` stackHeight)
+              stackMoveResizeWindow n win
               positionWindowsHelper (n + 1) wins
         scrW = screenWidth ms
         scrH = screenHeight ms
         stackHeight = length extractedWindows - 1
+        stackMoveResizeWindow n win = moveResizeWindow dpy win (fromIntegral $ (scrW `div` 2) + (windowGap `div` 2)) (fromIntegral $ (n - 1) * (scrH - 2 * windowGap) `div` stackHeight + ((n - 1) * windowGap `div` stackHeight) + windowGap) (fromIntegral $ (scrW `div` 2) - (3 * windowGap `div` 2)) (fromIntegral $ ((scrH - (1 + stackHeight) * windowGap) `div` stackHeight))
 
 loop :: Display -> MasterState -> IO ()
 loop dpy state = do
@@ -158,4 +163,4 @@ main = do
   keycodeActions <- grabKeys dpy $ keybindings
   grabButton dpy 1 mod4Mask (defaultRootWindow dpy) True (buttonPressMask + buttonReleaseMask + pointerMotionMask) grabModeAsync grabModeAsync 0 0
   grabButton dpy 3 mod4Mask (defaultRootWindow dpy) True (buttonPressMask + buttonReleaseMask + pointerMotionMask) grabModeAsync grabModeAsync 0 0
-  loop dpy $ MasterState NoPrevMouse ((RWMDisplay [] True):(take 8 $ repeat $ RWMDisplay [] False)) (fromIntegral $ displayWidth dpy $ defaultScreen dpy) (fromIntegral $ displayHeight dpy $ defaultScreen dpy) (defaultRootWindow dpy) dpy (HM.fromList keycodeActions)
+  loop dpy $ MasterState NoPrevMouse ((RWMDisplay [] True):(take 8 $ repeat $ RWMDisplay [] False)) (fromIntegral $ displayWidth dpy $ defaultScreen dpy) (fromIntegral $ displayHeight dpy $ defaultScreen dpy) (defaultRootWindow dpy) dpy 6 (HM.fromList keycodeActions)
