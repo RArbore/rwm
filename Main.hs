@@ -129,22 +129,37 @@ positionWindows dpy ms = positionWindowsHelper 0 $ extractedWindows
         stackHeight = length extractedWindows - 1
         stackMoveResizeWindow n win = moveResizeWindow dpy win (fromIntegral $ (scrW `div` 2) + (windowGap `div` 2)) (fromIntegral $ (n - 1) * (scrH - 2 * windowGap) `div` stackHeight + ((n - 1) * windowGap `div` stackHeight) + windowGap) (fromIntegral $ (scrW `div` 2) - (3 * windowGap `div` 2)) (fromIntegral $ ((scrH - (1 + stackHeight) * windowGap) `div` stackHeight))
 
+handle :: MasterState -> Event -> IO MasterState
+handle ms (KeyEvent {ev_event_type = etype, ev_keycode = keycode})
+  | etype == keyPress = executeKeyCode ms $ keycode
+  | otherwise = return ms
+handle ms (MapRequestEvent {ev_window = win}) = do
+  if win `elem` (concat $ map windows $ displays ms) then return () else mapWindow (xDisplay ms) (win)
+  return $ makeWindow ms $ win
+handle ms (DestroyWindowEvent {ev_window = win}) = return $ discardWindow ms win
+handle ms e@(ConfigureRequestEvent {ev_window = win}) = do
+  if win `elem` (concat $ map windows $ displays ms) then do
+    attr <- getWindowAttributes (xDisplay ms) win
+    configureWindow (xDisplay ms) win (ev_value_mask e) $ WindowChanges {
+        wc_x            = wa_x attr
+      , wc_y            = wa_y attr
+      , wc_width        = wa_width attr
+      , wc_height       = wa_height attr
+      , wc_border_width = wa_border_width attr
+      , wc_sibling      = ev_above e
+      , wc_stack_mode   = ev_detail e
+                                                                        }
+    return ms
+  else return ms
+handle ms _ = return ms
+
 loop :: Display -> MasterState -> IO ()
 loop dpy state = do
   newState <- allocaXEvent $ \e -> do
     nextEvent dpy e
     t <- get_EventType e
     ev <- getEvent e
-    appendFile "/home/russel/Work/rwm/rwm.log" $ "EVENT: " ++ (show t) ++ " " ++ (show $ ev_window ev) ++ ['\n']
-    if t == keyPress then do
-      appendFile "/home/russel/Work/rwm/rwm.log" $ "KEYPRESS: " ++ (show $ ev_keycode ev) ++ ['\n']
-      executeKeyCode state $ ev_keycode ev
-    else if t == mapRequest then do
-      if (ev_window ev) `elem` (concat $ map windows $ displays state) then return () else mapWindow dpy (ev_window ev)
-      return $ makeWindow state $ ev_window ev
-    else if t == destroyNotify then do
-      return $ discardWindow state $ ev_window ev
-    else do return state
+    handle state ev
   if state /= newState then do positionWindows dpy newState
   else do return ()
   loop dpy newState
