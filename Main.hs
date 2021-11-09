@@ -134,12 +134,13 @@ loop dpy state = do
   newState <- allocaXEvent $ \e -> do
     nextEvent dpy e
     t <- get_EventType e
-    w <- get_Window e
     ev <- getEvent e
+    appendFile "/home/russel/Work/rwm/rwm.log" $ "EVENT: " ++ (show t) ++ " " ++ (show $ ev_window ev) ++ ['\n']
     if t == keyPress then do
+      appendFile "/home/russel/Work/rwm/rwm.log" $ "KEYPRESS: " ++ (show $ ev_keycode ev) ++ ['\n']
       executeKeyCode state $ ev_keycode ev
     else if t == mapRequest then do
-      if w `elem` (concat $ map windows $ displays state) then return () else mapWindow dpy (ev_window ev)
+      if (ev_window ev) `elem` (concat $ map windows $ displays state) then return () else mapWindow dpy (ev_window ev)
       return $ makeWindow state $ ev_window ev
     else if t == destroyNotify then do
       return $ discardWindow state $ ev_window ev
@@ -159,8 +160,20 @@ grabKeys dpy (x:xs) = do
 main :: IO ()
 main = do
   dpy <- openDisplay ""
+  setErrorHandler (\d -> (\p -> do
+                                  error <- getErrorEvent p
+                                  appendFile "/home/russel/Work/rwm/rwm.log" $ "ERROR: "
+                                    ++ (show $ ev_type error) ++ ['\n']
+                                    ++ (show $ ev_display error) ++ ['\n']
+                                    ++ (show $ ev_serialnum error) ++ ['\n']
+                                    ++ (show $ ev_error_code error) ++ ['\n']
+                                    ++ (show $ ev_request_code error) ++ ['\n']
+                                    ++ (show $ ev_minor_code error) ++ ['\n']
+                                    ++ (show $ ev_resourceid error) ++ ['\n']
+                             ))
   selectInput dpy (defaultRootWindow dpy) (substructureRedirectMask + substructureNotifyMask + buttonPressMask + pointerMotionMask + enterWindowMask + leaveWindowMask + structureNotifyMask)
   keycodeActions <- grabKeys dpy $ keybindings
   grabButton dpy 1 mod4Mask (defaultRootWindow dpy) True (buttonPressMask + buttonReleaseMask + pointerMotionMask) grabModeAsync grabModeAsync 0 0
   grabButton dpy 3 mod4Mask (defaultRootWindow dpy) True (buttonPressMask + buttonReleaseMask + pointerMotionMask) grabModeAsync grabModeAsync 0 0
+  sync dpy False
   loop dpy $ MasterState NoPrevMouse ((RWMDisplay [] True):(take 8 $ repeat $ RWMDisplay [] False)) (fromIntegral $ displayWidth dpy $ defaultScreen dpy) (fromIntegral $ displayHeight dpy $ defaultScreen dpy) (defaultRootWindow dpy) dpy 6 (HM.fromList keycodeActions)
