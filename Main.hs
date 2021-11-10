@@ -30,7 +30,7 @@ keybindings = [
   (xK_c, RunAction CloseWindow),
   (xK_r, RunCommand "dmenu_run"),
   (xK_e, RunCommand "emacsclient -c -a emacs"),
-  (xK_b, RunCommand "icecat"),
+  (xK_b, RunCommand "librewolf"),
   (xK_q, RunCommand "killall rwm"),
   (xK_Return, RunCommand "alacritty")
               ]
